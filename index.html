@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vitamina Leite – Controle de Estoque</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; min-height: 100vh; background: #FFF8F0; color: #1a1a1a; }
+
+    /* ── Status de conexão ─────────────────────────────────────── */
+    #status-bar {
+      background: #27AE60; color: #fff;
+      text-align: center; font-size: 12px; font-weight: 600;
+      padding: 5px; letter-spacing: .4px; transition: background .4s;
+    }
+    #status-bar.offline  { background: #E67E22; }
+    #status-bar.loading  { background: #95A5A6; }
+    #status-bar.error    { background: #C0392B; }
+
+    /* ── Header ────────────────────────────────────────────────── */
+    #header { background: #C0392B; padding: 20px 24px; box-shadow: 0 2px 12px rgba(192,57,43,.3); }
+    #header-inner { max-width: 800px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+    #brand-name { font-family: 'Playfair Display', serif; color: #fff; font-size: 22px; font-weight: 700; }
+    #brand-sub { color: #FFCDD2; font-size: 12px; margin-top: 2px; }
+    #alerta-badge { background: #FF8F00; color: #fff; border-radius: 20px; padding: 6px 14px; font-size: 13px; font-weight: 600; display: none; }
+
+    /* ── Main ──────────────────────────────────────────────────── */
+    #main { max-width: 800px; margin: 0 auto; padding: 20px 16px 0; }
+
+    /* ── Cards resumo ──────────────────────────────────────────── */
+    #cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+    .card { background: #fff; border-radius: 12px; padding: 14px 16px; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
+    .card-icon { font-size: 22px; }
+    .card-valor { font-size: 20px; font-weight: 700; margin-top: 4px; }
+    .card-label { font-size: 11px; color: #888; margin-top: 2px; }
+
+    /* ── Tabs ──────────────────────────────────────────────────── */
+    #tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #fff; border-radius: 10px; padding: 4px; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
+    .tab-btn { flex: 1; padding: 10px 0; border: none; border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; background: transparent; color: #666; transition: all .2s; }
+    .tab-btn.active { background: #C0392B; color: #fff; }
+
+    /* ── Section headers ───────────────────────────────────────── */
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .section-title { font-weight: 700; font-size: 16px; }
+    .btn-group { display: flex; gap: 8px; }
+
+    /* ── Buttons ───────────────────────────────────────────────── */
+    .btn { border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; color: #fff; }
+    .btn-red    { background: #C0392B; }
+    .btn-green  { background: #27AE60; }
+    .btn-orange { background: #E67E22; }
+    .btn-gray   { background: #95A5A6; }
+    .btn-full   { width: 100%; padding: 12px 0; font-size: 15px; margin-top: 8px; }
+
+    /* ── Produto card ──────────────────────────────────────────── */
+    .produto-card { background: #fff; border-radius: 12px; padding: 14px 16px; box-shadow: 0 1px 6px rgba(0,0,0,.07); border: 1.5px solid transparent; margin-bottom: 10px; }
+    .produto-card.baixo { border-color: #FF8F00; }
+    .produto-row { display: flex; justify-content: space-between; align-items: flex-start; }
+    .produto-nome { font-weight: 700; font-size: 15px; }
+    .badge-baixo { background: #FFF3E0; color: #E67E22; font-size: 11px; padding: 2px 7px; border-radius: 20px; margin-left: 6px; }
+    .produto-sub { font-size: 12px; color: #888; margin-top: 2px; }
+    .produto-right { display: flex; align-items: center; gap: 10px; }
+    .produto-qtd { font-size: 22px; font-weight: 700; text-align: right; }
+    .produto-un { font-size: 11px; color: #aaa; }
+    .produto-actions { display: flex; flex-direction: column; gap: 4px; }
+    .btn-icon { background: #f5f5f5; border: none; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 13px; }
+    .progress-bar { margin-top: 10px; height: 5px; background: #f0f0f0; border-radius: 3px; }
+    .progress-fill { height: 100%; border-radius: 3px; transition: width .4s; }
+
+    /* ── Histórico ─────────────────────────────────────────────── */
+    .filtros { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+    select.select-filtro, input.select-filtro { padding: 8px 12px; border: 1.5px solid #e8e8e8; border-radius: 8px; font-family: inherit; font-size: 13px; background: #fff; cursor: pointer; }
+    .btn-clear-date { background: #f0f0f0; border: none; border-radius: 8px; padding: 7px 10px; cursor: pointer; font-size: 13px; color: #666; }
+    .mov-card { background: #fff; border-radius: 10px; padding: 12px 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06); display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .mov-nome { font-weight: 600; font-size: 14px; }
+    .mov-sub { font-size: 12px; color: #999; margin-top: 2px; }
+    .mov-qtd { font-weight: 700; font-size: 16px; text-align: right; }
+    .mov-tipo { font-size: 11px; color: #bbb; text-transform: uppercase; }
+    .empty { text-align: center; color: #aaa; padding: 40px; }
+
+    /* ── Compras ───────────────────────────────────────────────── */
+    #nota-compras { width: 100%; min-height: 420px; padding: 16px; border: 1.5px solid #e8e8e8; border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 15px; line-height: 1.8; resize: vertical; background: #FFFDF5; outline: none; box-shadow: 0 1px 6px rgba(0,0,0,.06); color: #1a1a1a; }
+    #nota-info { font-size: 12px; color: #bbb; margin-top: 8px; text-align: right; }
+
+    /* ── Modal ─────────────────────────────────────────────────── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100; display: flex; align-items: flex-end; justify-content: center; }
+    .modal-box { background: #fff; width: 100%; max-width: 480px; border-radius: 20px 20px 0 0; padding: 24px 20px 32px; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .modal-titulo { font-weight: 700; font-size: 17px; }
+    .btn-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
+    label.lbl { display: block; font-size: 12px; font-weight: 600; color: #666; margin-bottom: 4px; }
+    input.inp, select.inp { width: 100%; padding: 10px 12px; border: 1.5px solid #e8e8e8; border-radius: 8px; font-family: inherit; font-size: 14px; margin-bottom: 12px; background: #FAFAFA; }
+    .tipo-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
+    .tipo-btn { flex: 1; padding: 10px 0; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; font-weight: 600; font-size: 14px; background: #f0f0f0; color: #666; }
+    .tipo-btn.active-entrada { background: #27AE60; color: #fff; }
+    .tipo-btn.active-saida   { background: #E67E22; color: #fff; }
+    .confirm-text { color: #555; font-size: 14px; margin-bottom: 20px; }
+    .confirm-btns { display: flex; gap: 10px; }
+    .btn-cancel { flex: 1; padding: 12px 0; border: 1.5px solid #e8e8e8; border-radius: 8px; background: #fff; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; color: #666; }
+
+    .spacer { height: 32px; }
+
+    /* ── Spinner ───────────────────────────────────────────────── */
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- Barra de status de conexão -->
+<div id="status-bar" class="loading">⏳ Conectando ao banco de dados…</div>
+
+<!-- Header -->
+<div id="header">
+  <div id="header-inner">
+    <div>
+      <div id="brand-name">Vitamina Leite</div>
+      <div id="brand-sub">Controle de Estoque</div>
+    </div>
+    <div id="alerta-badge"></div>
+  </div>
+</div>
+
+<!-- Main -->
+<div id="main">
+  <!-- Cards -->
+  <div id="cards">
+    <div class="card" style="border-top:3px solid #C0392B">
+      <div class="card-icon">📦</div>
+      <div class="card-valor" id="card-produtos" style="color:#C0392B">–</div>
+      <div class="card-label">Produtos cadastrados</div>
+    </div>
+    <div class="card" style="border-top:3px solid #27AE60">
+      <div class="card-icon">🧮</div>
+      <div class="card-valor" id="card-total" style="color:#27AE60">–</div>
+      <div class="card-label">Total em estoque</div>
+    </div>
+    <div class="card" style="border-top:3px solid #95A5A6" id="card-alertas-container">
+      <div class="card-icon">⚠️</div>
+      <div class="card-valor" id="card-alertas" style="color:#95A5A6">–</div>
+      <div class="card-label">Abaixo do mínimo</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div id="tabs">
+    <button class="tab-btn active" data-aba="estoque">📦 Estoque</button>
+    <button class="tab-btn" data-aba="historico">📋 Histórico</button>
+    <button class="tab-btn" data-aba="compras">🛒 Compras</button>
+  </div>
+
+  <!-- Aba Estoque -->
+  <div id="aba-estoque">
+    <div class="section-header">
+      <span class="section-title">Produtos</span>
+      <div class="btn-group">
+        <button class="btn btn-green" id="btn-entrada-global">+ Entrada</button>
+        <button class="btn btn-orange" id="btn-saida-global">− Saída</button>
+        <button class="btn btn-red"   id="btn-novo-prod">+ Produto</button>
+      </div>
+    </div>
+    <div id="lista-produtos"></div>
+  </div>
+
+  <!-- Aba Histórico -->
+  <div id="aba-historico" style="display:none">
+    <div class="filtros">
+      <select class="select-filtro" id="filtro-tipo">
+        <option value="todos">Todos</option>
+        <option value="entrada">Entradas</option>
+        <option value="saida">Saídas</option>
+      </select>
+      <select class="select-filtro" id="filtro-prod">
+        <option value="">Todos os produtos</option>
+      </select>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="date" class="select-filtro" id="filtro-data" style="padding:7px 10px" />
+        <button class="btn-clear-date" id="btn-clear-date" style="display:none">✕</button>
+      </div>
+    </div>
+    <div id="lista-historico"></div>
+  </div>
+
+  <!-- Aba Compras -->
+  <div id="aba-compras" style="display:none">
+    <div class="section-header">
+      <span class="section-title">Lista de Compras</span>
+      <button class="btn btn-gray" id="btn-limpar-nota" style="display:none">Limpar</button>
+    </div>
+    <textarea id="nota-compras" placeholder="Escreva sua lista aqui...&#10;&#10;Ex:&#10;- Farinha de trigo 5kg&#10;- Frango 10kg&#10;- Óleo 2L"></textarea>
+    <div id="nota-info">Bloco de notas livre</div>
+  </div>
+
+  <div class="spacer"></div>
+</div>
+
+<!-- Modal Produto -->
+<div class="modal-overlay" id="modal-prod" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-titulo" id="modal-prod-titulo">Novo Produto</span>
+      <button class="btn-close" id="modal-prod-close">✕</button>
+    </div>
+    <label class="lbl">Nome do salgado</label>
+    <input class="inp" id="prod-nome" placeholder="Ex: Coxinha" />
+    <label class="lbl">Categoria</label>
+    <select class="inp" id="prod-categoria">
+      <option>Fritos</option><option>Assados</option><option>Mini</option><option>Especiais</option>
+    </select>
+    <label class="lbl">Unidade</label>
+    <select class="inp" id="prod-unidade">
+      <option>un</option><option>dz</option><option>kg</option><option>cx</option>
+    </select>
+    <label class="lbl">Estoque atual</label>
+    <input class="inp" type="number" min="0" id="prod-estoque" placeholder="0" />
+    <label class="lbl">Estoque mínimo (alerta)</label>
+    <input class="inp" type="number" min="0" id="prod-minimo" placeholder="0" />
+    <button class="btn btn-red btn-full" id="btn-salvar-prod">Cadastrar produto</button>
+  </div>
+</div>
+
+<!-- Modal Movimentação -->
+<div class="modal-overlay" id="modal-mov" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-titulo" id="modal-mov-titulo">Registrar Entrada</span>
+      <button class="btn-close" id="modal-mov-close">✕</button>
+    </div>
+    <label class="lbl">Tipo</label>
+    <div class="tipo-toggle">
+      <button class="tipo-btn active-entrada" id="tipo-entrada">➕ Entrada</button>
+      <button class="tipo-btn" id="tipo-saida">➖ Saída</button>
+    </div>
+    <label class="lbl">Produto</label>
+    <select class="inp" id="mov-produto"><option value="">Selecione...</option></select>
+    <label class="lbl">Quantidade</label>
+    <input class="inp" type="number" min="1" id="mov-qtd" placeholder="0" />
+    <label class="lbl">Observação (opcional)</label>
+    <input class="inp" id="mov-obs" placeholder="Ex: Venda balcão, produção..." />
+    <button class="btn btn-green btn-full" id="btn-salvar-mov">Confirmar entrada</button>
+  </div>
+</div>
+
+<!-- Modal Confirmar Exclusão -->
+<div class="modal-overlay" id="modal-excluir" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-titulo">Excluir produto?</span>
+      <button class="btn-close" id="modal-excluir-close">✕</button>
+    </div>
+    <p class="confirm-text" id="excluir-texto"></p>
+    <div class="confirm-btns">
+      <button class="btn-cancel" id="btn-cancelar-excluir">Cancelar</button>
+      <button class="btn btn-red" style="flex:1;padding:12px 0;font-size:14px" id="btn-confirmar-excluir">Excluir</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Captura QUALQUER erro e mostra direto na tela (para debug fácil no celular)
+  window.addEventListener('error', function(e) {
+    document.getElementById('status-bar').textContent = '❌ ERRO: ' + e.message + ' (linha ' + e.lineno + ')';
+    document.getElementById('status-bar').className = 'error';
+  });
+  window.addEventListener('unhandledrejection', function(e) {
+    document.getElementById('status-bar').textContent = '❌ ERRO (promise): ' + (e.reason && e.reason.message ? e.reason.message : e.reason);
+    document.getElementById('status-bar').className = 'error';
+  });
+  // Se em 8s nada mudou, mostra aviso de timeout
+  setTimeout(function() {
+    var bar = document.getElementById('status-bar');
+    if (bar.textContent.includes('Conectando')) {
+      bar.textContent = '⚠️ Demorando para conectar... verifique databaseURL e regras do Firebase';
+      bar.className = 'error';
+    }
+  }, 8000);
+</script>
+<script type="module">
+// =============================================================================
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, push, set, update, remove, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+//  ⚙️  CONFIGURAÇÃO DO FIREBASE
+//  1. Acesse https://console.firebase.google.com
+//  2. Crie um projeto (ou use um existente)
+//  3. Vá em "Configurações do projeto" → "Seus apps" → adicione um app Web
+//  4. Copie o objeto firebaseConfig e cole aqui abaixo substituindo os valores
+//  5. No menu lateral vá em "Realtime Database" → Criar banco de dados
+//  6. Em "Regras", use as regras abaixo para permitir leitura/escrita:
+//     {
+//       "rules": {
+//         ".read": true,
+//         ".write": true
+//       }
+//     }
+// =============================================================================
+const firebaseConfig = {
+  apiKey:            "AIzaSyCtLuVw_VwWZnNa9cBTgCog7ao3tbgHRrk",
+  authDomain:        "do-06-d7c28.firebaseapp.com",
+  databaseURL:       "https://do-06-d7c28-default-rtdb.firebaseio.com",
+  projectId:         "do-06-d7c28",
+  storageBucket:     "do-06-d7c28.firebasestorage.app",
+  messagingSenderId: "326172967884",
+  appId:             "1:326172967884:web:e441a2465ad216bd5f5369"
+};
+
+// Inicializar Firebase
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// Referências no banco
+const refProdutos   = ref(db, "produtos");
+const refMovimentos = ref(db, "movimentos");
+const refNota       = ref(db, "nota");
+
+// =============================================================================
+//  ESTADO LOCAL (preenchido em tempo real pelo Firebase)
+// =============================================================================
+let produtos   = [];
+let movimentos = [];
+let editProdId = null;
+let excluirId  = null;
+let movTipo    = "entrada";
+
+// =============================================================================
+//  HELPERS
+// =============================================================================
+function $(id) { return document.getElementById(id); }
+function fmt(d) { if (!d) return ""; const [y,m,day] = d.split("-"); return `${day}/${m}/${y}`; }
+function hoje() { return new Date().toISOString().split("T")[0]; }
+function setStatus(msg, cls) {
+  const bar = $("status-bar");
+  bar.textContent = msg;
+  bar.className = cls || "";
+}
+
+// =============================================================================
+//  RENDER
+// =============================================================================
+function render() {
+  renderCards();
+  renderProdutos();
+  renderHistorico();
+  atualizarSelectProdutos();
+}
+
+function renderCards() {
+  const alertas = produtos.filter(p => p.estoque <= p.minimo);
+  const total   = produtos.reduce((a, p) => a + p.estoque, 0);
+  $("card-produtos").textContent = produtos.length;
+  $("card-total").textContent    = total + " un";
+  $("card-alertas").textContent  = alertas.length;
+  const cor = alertas.length > 0 ? "#E67E22" : "#95A5A6";
+  $("card-alertas").style.color = cor;
+  $("card-alertas-container").style.borderTopColor = cor;
+  const badge = $("alerta-badge");
+  if (alertas.length > 0) {
+    badge.style.display = "block";
+    badge.textContent = `⚠️ ${alertas.length} alerta${alertas.length > 1 ? "s" : ""}`;
+  } else {
+    badge.style.display = "none";
+  }
+}
+
+function renderProdutos() {
+  const container = $("lista-produtos");
+  if (produtos.length === 0) {
+    container.innerHTML = '<div class="empty">Nenhum produto cadastrado</div>';
+    return;
+  }
+  container.innerHTML = produtos.map(p => {
+    const baixo     = p.estoque <= p.minimo;
+    const pct       = Math.min(100, p.minimo > 0 ? (p.estoque / (p.minimo * 2)) * 100 : 100);
+    const cor       = baixo ? "#E67E22" : "#C0392B";
+    const fillColor = baixo ? "#E67E22" : "#27AE60";
+    return `
+      <div class="produto-card${baixo ? " baixo" : ""}">
+        <div class="produto-row">
+          <div>
+            <div class="produto-nome">${p.nome}${baixo ? '<span class="badge-baixo">⚠️ Baixo</span>' : ""}</div>
+            <div class="produto-sub">${p.categoria} · mín. ${p.minimo} ${p.unidade}</div>
+          </div>
+          <div class="produto-right">
+            <div>
+              <div class="produto-qtd" style="color:${cor}">${p.estoque}</div>
+              <div class="produto-un">${p.unidade}</div>
+            </div>
+            <div class="produto-actions">
+              <button class="btn-icon" onclick="abrirEditProd('${p.id}')">✏️</button>
+              <button class="btn-icon" onclick="excluirProd('${p.id}')">🗑️</button>
+            </div>
+          </div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width:${pct}%;background:${fillColor}"></div>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function renderHistorico() {
+  const tipo   = $("filtro-tipo").value;
+  const prodId = $("filtro-prod").value;
+  const data   = $("filtro-data").value;
+
+  const filtrados = movimentos.filter(m => {
+    if (tipo !== "todos" && m.tipo !== tipo) return false;
+    if (prodId && m.produtoId !== prodId) return false;
+    if (data && m.data !== data) return false;
+    return true;
+  });
+
+  const container = $("lista-historico");
+  if (filtrados.length === 0) {
+    container.innerHTML = '<div class="empty">Nenhuma movimentação encontrada</div>';
+    return;
+  }
+  // mais recentes primeiro
+  const ordenados = [...filtrados].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  container.innerHTML = ordenados.map(m => `
+    <div class="mov-card" style="border-left:4px solid ${m.tipo === "entrada" ? "#27AE60" : "#E67E22"}">
+      <div>
+        <div class="mov-nome">${m.produto}</div>
+        <div class="mov-sub">${fmt(m.data)}${m.obs ? " · " + m.obs : ""}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="mov-qtd" style="color:${m.tipo === "entrada" ? "#27AE60" : "#E67E22"}">${m.tipo === "entrada" ? "+" : "−"}${m.qtd}</div>
+        <div class="mov-tipo">${m.tipo}</div>
+      </div>
+    </div>`).join("");
+}
+
+function atualizarSelectProdutos() {
+  const opts = '<option value="">Selecione...</option>' +
+    produtos.map(p => `<option value="${p.id}">${p.nome}</option>`).join("");
+  $("mov-produto").innerHTML = opts;
+
+  const filtroProd = $("filtro-prod");
+  const atual = filtroProd.value;
+  filtroProd.innerHTML = '<option value="">Todos os produtos</option>' +
+    produtos.map(p => `<option value="${p.id}">${p.nome}</option>`).join("");
+  filtroProd.value = atual;
+}
+
+// =============================================================================
+//  PRODUTO CRUD  (grava no Firebase)
+// =============================================================================
+function abrirNovoProd() {
+  editProdId = null;
+  $("modal-prod-titulo").textContent  = "Novo Produto";
+  $("prod-nome").value      = "";
+  $("prod-categoria").value = "Fritos";
+  $("prod-unidade").value   = "un";
+  $("prod-estoque").value   = "";
+  $("prod-minimo").value    = "";
+  $("btn-salvar-prod").textContent  = "Cadastrar produto";
+  $("btn-salvar-prod").className    = "btn btn-red btn-full";
+  $("modal-prod").style.display = "flex";
+}
+
+function abrirEditProd(id) {
+  const p = produtos.find(x => x.id === id);
+  if (!p) return;
+  editProdId = id;
+  $("modal-prod-titulo").textContent  = "Editar Produto";
+  $("prod-nome").value      = p.nome;
+  $("prod-categoria").value = p.categoria;
+  $("prod-unidade").value   = p.unidade;
+  $("prod-estoque").value   = p.estoque;
+  $("prod-minimo").value    = p.minimo;
+  $("btn-salvar-prod").textContent  = "Salvar alterações";
+  $("btn-salvar-prod").className    = "btn btn-red btn-full";
+  $("modal-prod").style.display = "flex";
+}
+
+function salvarProd() {
+  const nome = $("prod-nome").value.trim();
+  if (!nome) return;
+
+  const obj = {
+    nome,
+    categoria : $("prod-categoria").value,
+    unidade   : $("prod-unidade").value,
+    estoque   : Number($("prod-estoque").value) || 0,
+    minimo    : Number($("prod-minimo").value)  || 0,
+  };
+
+  const btn = $("btn-salvar-prod");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Salvando…';
+
+  let promise;
+  if (editProdId !== null) {
+    promise = update(ref(db, `produtos/${editProdId}`), obj);
+  } else {
+    const novoRef = push(refProdutos);
+    promise = set(novoRef, { id: novoRef.key, ...obj });
+  }
+
+  promise
+    .then(() => { $("modal-prod").style.display = "none"; })
+    .catch(err => { alert("Erro ao salvar: " + err.message); })
+    .finally(() => {
+      btn.disabled = false;
+      btn.innerHTML = editProdId ? "Salvar alterações" : "Cadastrar produto";
+    });
+}
+
+function excluirProd(id) {
+  excluirId = id;
+  const p = produtos.find(x => x.id === id);
+  $("excluir-texto").innerHTML =
+    `Tem certeza que deseja excluir <strong>${p?.nome}</strong>? Esta ação não pode ser desfeita.`;
+  $("modal-excluir").style.display = "flex";
+}
+
+function confirmarExclusao() {
+  if (!excluirId) return;
+  remove(ref(db, `produtos/${excluirId}`))
+    .then(() => {
+      excluirId = null;
+      $("modal-excluir").style.display = "none";
+    })
+    .catch(err => alert("Erro ao excluir: " + err.message));
+}
+
+// =============================================================================
+//  MOVIMENTAÇÃO  (grava no Firebase usando transação para estoque seguro)
+// =============================================================================
+function abrirMov(tipo = "entrada", produtoId = "") {
+  movTipo = tipo;
+  atualizarTipoMov();
+  $("mov-produto").value = produtoId ? String(produtoId) : "";
+  $("mov-qtd").value = "";
+  $("mov-obs").value = "";
+  $("modal-mov").style.display = "flex";
+}
+
+function atualizarTipoMov() {
+  const te = $("tipo-entrada"), ts = $("tipo-saida");
+  $("modal-mov-titulo").textContent = movTipo === "entrada" ? "Registrar Entrada" : "Registrar Saída";
+  te.className = "tipo-btn" + (movTipo === "entrada" ? " active-entrada" : "");
+  ts.className = "tipo-btn" + (movTipo === "saida"   ? " active-saida"   : "");
+  const btnSalvar = $("btn-salvar-mov");
+  btnSalvar.className  = "btn btn-full " + (movTipo === "entrada" ? "btn-green" : "btn-orange");
+  btnSalvar.textContent = `Confirmar ${movTipo}`;
+}
+
+function salvarMov() {
+  const produtoId = $("mov-produto").value;
+  const qtd       = Number($("mov-qtd").value);
+  if (!produtoId || !qtd) return;
+
+  const prod = produtos.find(p => p.id === produtoId);
+  if (!prod) return;
+
+  const btn = $("btn-salvar-mov");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Salvando…';
+
+  // Atualiza estoque e registra movimentação
+  const novoEstoque = movTipo === "entrada"
+    ? prod.estoque + qtd
+    : Math.max(0, prod.estoque - qtd);
+
+  update(ref(db, `produtos/${produtoId}`), { estoque: novoEstoque }).then(() => {
+    const movRef = push(refMovimentos);
+    return set(movRef, {
+      id        : movRef.key,
+      data      : hoje(),
+      timestamp : serverTimestamp(),
+      tipo      : movTipo,
+      produtoId : prod.id,
+      produto   : prod.nome,
+      qtd,
+      obs       : $("mov-obs").value,
+    });
+  }).then(() => {
+    $("modal-mov").style.display = "none";
+  }).catch(err => {
+    alert("Erro ao registrar movimentação: " + err.message);
+  }).finally(() => {
+    btn.disabled = false;
+    atualizarTipoMov();
+  });
+}
+
+// =============================================================================
+//  LISTENERS EM TEMPO REAL do Firebase
+// =============================================================================
+setStatus("⏳ Conectando ao banco de dados…", "loading");
+
+onValue(refProdutos, snap => {
+  produtos = [];
+  snap.forEach(child => { produtos.push(child.val()); });
+  render();
+  setStatus("🟢 Conectado · dados em tempo real", "");
+}, err => {
+  setStatus("❌ Erro de conexão: " + err.message, "error");
+});
+
+onValue(refMovimentos, snap => {
+  movimentos = [];
+  snap.forEach(child => { movimentos.push(child.val()); });
+  renderHistorico();
+});
+
+// Detectar online/offline
+onValue(ref(db, ".info/connected"), snap => {
+  if (snap.val() === true) {
+    setStatus("🟢 Conectado · dados em tempo real", "");
+  } else {
+    setStatus("🔴 Sem conexão — trabalhando offline", "offline");
+  }
+});
+
+// =============================================================================
+//  LISTA DE COMPRAS  (sincronizada no Firebase)
+// =============================================================================
+let notaDebounce = null;
+
+onValue(refNota, snap => {
+  const val = snap.val() || "";
+  // Só atualiza se o campo não estiver em foco (evita sobrescrever o que o user digita)
+  if (document.activeElement !== $("nota-compras")) {
+    $("nota-compras").value = val;
+    const linhas = val.split("\n").filter(l => l.trim()).length;
+    $("nota-info").textContent = val ? `${linhas} linha(s)` : "Bloco de notas livre";
+    $("btn-limpar-nota").style.display = val ? "inline-block" : "none";
+  }
+});
+
+$("nota-compras").addEventListener("input", () => {
+  const val = $("nota-compras").value;
+  const linhas = val.split("\n").filter(l => l.trim()).length;
+  $("nota-info").textContent = val.length > 0 ? `${linhas} linha(s)` : "Bloco de notas livre";
+  $("btn-limpar-nota").style.display = val ? "inline-block" : "none";
+
+  // Debounce: só grava após 800ms sem digitar (evita spam de writes)
+  clearTimeout(notaDebounce);
+  notaDebounce = setTimeout(() => set(refNota, val), 800);
+});
+
+$("btn-limpar-nota").addEventListener("click", () => {
+  $("nota-compras").value = "";
+  $("nota-info").textContent = "Bloco de notas livre";
+  $("btn-limpar-nota").style.display = "none";
+  set(refNota, "");
+});
+
+// =============================================================================
+//  TABS
+// =============================================================================
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    const aba = btn.dataset.aba;
+    $("aba-estoque").style.display   = aba === "estoque"   ? "block" : "none";
+    $("aba-historico").style.display = aba === "historico" ? "block" : "none";
+    $("aba-compras").style.display   = aba === "compras"   ? "block" : "none";
+  });
+});
+
+// =============================================================================
+//  BOTÕES
+// =============================================================================
+$("btn-novo-prod").addEventListener("click", abrirNovoProd);
+$("btn-entrada-global").addEventListener("click", () => abrirMov("entrada"));
+$("btn-saida-global").addEventListener("click",   () => abrirMov("saida"));
+$("btn-salvar-prod").addEventListener("click",  salvarProd);
+$("btn-salvar-mov").addEventListener("click",   salvarMov);
+$("modal-prod-close").addEventListener("click",    () => $("modal-prod").style.display    = "none");
+$("modal-mov-close").addEventListener("click",     () => $("modal-mov").style.display     = "none");
+$("modal-excluir-close").addEventListener("click", () => $("modal-excluir").style.display = "none");
+$("btn-cancelar-excluir").addEventListener("click",() => $("modal-excluir").style.display = "none");
+$("btn-confirmar-excluir").addEventListener("click", confirmarExclusao);
+
+$("tipo-entrada").addEventListener("click", () => { movTipo = "entrada"; atualizarTipoMov(); });
+$("tipo-saida").addEventListener("click",   () => { movTipo = "saida";   atualizarTipoMov(); });
+
+[$("modal-prod"), $("modal-mov"), $("modal-excluir")].forEach(m => {
+  m.addEventListener("click", e => { if (e.target === m) m.style.display = "none"; });
+});
+
+// Filtros histórico
+$("filtro-tipo").addEventListener("change", renderHistorico);
+$("filtro-prod").addEventListener("change", renderHistorico);
+$("filtro-data").addEventListener("change", () => {
+  $("btn-clear-date").style.display = $("filtro-data").value ? "inline-block" : "none";
+  renderHistorico();
+});
+$("btn-clear-date").addEventListener("click", () => {
+  $("filtro-data").value = "";
+  $("btn-clear-date").style.display = "none";
+  renderHistorico();
+});
+
+// Expor funções usadas no HTML inline (onclick=)
+window.abrirEditProd = abrirEditProd;
+window.excluirProd   = excluirProd;
+</script>
+</body>
+</html>
