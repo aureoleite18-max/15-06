@@ -183,7 +183,6 @@
   <div class="spacer"></div>
 </div>
 
-<!-- Modal Produto -->
 <div class="modal-overlay" id="modal-prod" style="display:none">
   <div class="modal-box">
     <div class="modal-header">
@@ -208,7 +207,6 @@
   </div>
 </div>
 
-<!-- Modal Movimentação -->
 <div class="modal-overlay" id="modal-mov" style="display:none">
   <div class="modal-box">
     <div class="modal-header">
@@ -230,7 +228,6 @@
   </div>
 </div>
 
-<!-- Modal Excluir -->
 <div class="modal-overlay" id="modal-excluir" style="display:none">
   <div class="modal-box">
     <div class="modal-header">
@@ -370,24 +367,29 @@ function abrirNovoProd() {
 function salvarProd() {
   const nome = $("prod-nome").value.trim();
   if (!nome) return;
+  const estoque = Number($("prod-estoque").value) || 0;
   const obj = {
     nome, categoria: $("prod-categoria").value, unidade: $("prod-unidade").value,
-    estoque: Number($("prod-estoque").value) || 0, minimo: Number($("prod-minimo").value) || 0,
+    estoque, minimo: Number($("prod-minimo").value) || 0,
   };
   const btn = $("btn-salvar-prod");
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Salvando…';
   const novoRef = push(refProdutos);
   const prodId  = novoRef.key;
-  set(novoRef, { id: prodId, ...obj }).then(() => {
-    if (obj.estoque > 0) {
+  const salvarMovInicial = () => {
+    if (estoque > 0) {
       const movRef = push(refMovimentos);
       return set(movRef, {
         id: movRef.key, data: hoje(), hora: agora(), timestamp: serverTimestamp(),
-        tipo: "entrada", produtoId: prodId, produto: obj.nome, qtd: obj.estoque, obs: "Estoque inicial"
+        tipo: "entrada", produtoId: prodId, produto: nome, qtd: estoque, obs: "Estoque inicial"
       });
     }
-  }).then(() => { $("modal-prod").style.display = "none"; })
-    .catch(err => alert("Erro: " + err.message))
+    return Promise.resolve();
+  };
+  set(novoRef, { id: prodId, ...obj })
+    .then(salvarMovInicial)
+    .then(() => { $("modal-prod").style.display = "none"; })
+    .catch(err => alert("Erro ao salvar: " + err.message))
     .finally(() => { btn.disabled = false; btn.textContent = "Cadastrar produto"; });
 }
 
@@ -441,16 +443,27 @@ function salvarMov() {
     .catch(err => alert("Erro: " + err.message))
     .finally(() => { btn.disabled = false; atualizarTipoMov(); });
 }
-  onValue(refProdutos, snap => {
-  produtos = [];
-  snap.forEach(c => produtos.push(c.val()));
+
+setStatus("⏳ Conectando ao banco de dados…", "loading");
+
+onValue(refProdutos, snap => {
+  const lista = [];
+  snap.forEach(c => {
+    const val = c.val();
+    if (val && val.nome) lista.push(val);
+  });
+  produtos = lista;
   render();
   setStatus("🟢 Conectado · dados em tempo real", "");
 }, err => setStatus("❌ Erro: " + err.message, "error"));
 
 onValue(refMovimentos, snap => {
-  movimentos = [];
-  snap.forEach(c => movimentos.push(c.val()));
+  const lista = [];
+  snap.forEach(c => {
+    const val = c.val();
+    if (val) lista.push(val);
+  });
+  movimentos = lista;
   renderHistorico();
 });
 
@@ -458,8 +471,7 @@ onValue(ref(db, ".info/connected"), snap => {
   if (snap.val() === true) setStatus("🟢 Conectado · dados em tempo real", "");
   else setStatus("🔴 Sem conexão — trabalhando offline", "offline");
 });
-
-let notaDebounce = null;
+  let notaDebounce = null;
 onValue(refNota, snap => {
   const val = snap.val() || "";
   if (document.activeElement !== $("nota-compras")) {
