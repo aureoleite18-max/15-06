@@ -5,10 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Vitamina Leite – Controle de Estoque</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'DM Sans', sans-serif; min-height: 100vh; background: #FFF8F0; color: #1a1a1a; }
-    #status-bar { background: #27AE60; color: #fff; text-align: center; font-size: 12px; font-weight: 600; padding: 5px; letter-spacing: .4px; }
+    #status-bar { background: #27AE60; color: #fff; text-align: center; font-size: 12px; font-weight: 600; padding: 5px; letter-spacing: .4px; transition: background .4s; }
+    #status-bar.offline { background: #E67E22; }
+    #status-bar.loading { background: #95A5A6; }
+    #status-bar.error   { background: #C0392B; }
     #header { background: #C0392B; padding: 20px 24px; box-shadow: 0 2px 12px rgba(192,57,43,.3); }
     #header-inner { max-width: 800px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
     #brand-name { font-family: 'Playfair Display', serif; color: #fff; font-size: 22px; font-weight: 700; }
@@ -21,7 +25,7 @@
     .card-valor { font-size: 20px; font-weight: 700; margin-top: 4px; }
     .card-label { font-size: 11px; color: #888; margin-top: 2px; }
     #tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #fff; border-radius: 10px; padding: 4px; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
-    .tab-btn { flex: 1; padding: 10px 0; border: none; border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; background: transparent; color: #666; transition: all .2s; }
+    .tab-btn { flex: 1; padding: 10px 0; border: none; border-radius: 8px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; background: transparent; color: #666; transition: all .2s; }
     .tab-btn.active { background: #C0392B; color: #fff; }
     .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
     .section-title { font-weight: 700; font-size: 16px; }
@@ -54,7 +58,7 @@
     .mov-qtd { font-weight: 700; font-size: 16px; text-align: right; }
     .mov-tipo { font-size: 11px; color: #bbb; text-transform: uppercase; }
     .empty { text-align: center; color: #aaa; padding: 40px; }
-    #nota-compras { width: 100%; min-height: 420px; padding: 16px; border: 1.5px solid #e8e8e8; border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 15px; line-height: 1.8; resize: vertical; background: #FFFDF5; outline: none; box-shadow: 0 1px 6px rgba(0,0,0,.06); color: #1a1a1a; }
+    #nota-compras { width: 100%; min-height: 420px; padding: 16px; border: 1.5px solid #e8e8e8; border-radius: 12px; font-family: 'DM Sans', sans-serif; font-size: 15px; line-height: 1.8; resize: vertical; background: #FFFDF5; outline: none; color: #1a1a1a; }
     #nota-info { font-size: 12px; color: #bbb; margin-top: 8px; text-align: right; }
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100; display: flex; align-items: flex-end; justify-content: center; }
     .modal-box { background: #fff; width: 100%; max-width: 480px; border-radius: 20px 20px 0 0; padding: 24px 20px 32px; }
@@ -73,21 +77,18 @@
     .spacer { height: 32px; }
     .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    /* ── Gráficos ─────────────────────────────────────────────── */
-  #aba-graficos { display:none; }
-  .grafico-card { background:#fff; border-radius:12px; padding:16px; box-shadow:0 1px 6px rgba(0,0,0,.07); margin-bottom:16px; }
-  .grafico-titulo { font-weight:700; font-size:15px; margin-bottom:14px; color:#1a1a1a; }
-  .periodo-toggle { display:flex; gap:6px; margin-bottom:16px; }
-  .periodo-btn { flex:1; padding:9px 0; border:1.5px solid #e8e8e8; border-radius:8px; font-family:inherit; font-weight:600; font-size:13px; cursor:pointer; background:#fff; color:#666; }
-  .periodo-btn.active { background:#C0392B; color:#fff; border-color:#C0392B; }
-  .canvas-wrap { position:relative; width:100%; }
-</style>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    #aba-graficos { display:none; }
+    .grafico-card { background:#fff; border-radius:12px; padding:16px; box-shadow:0 1px 6px rgba(0,0,0,.07); margin-bottom:16px; }
+    .grafico-titulo { font-weight:700; font-size:15px; margin-bottom:6px; color:#1a1a1a; }
+    .grafico-total { font-size:14px; color:#27AE60; font-weight:700; margin-bottom:12px; }
+    .periodo-toggle { display:flex; gap:6px; margin-bottom:16px; }
+    .periodo-btn { flex:1; padding:9px 0; border:1.5px solid #e8e8e8; border-radius:8px; font-family:inherit; font-weight:600; font-size:13px; cursor:pointer; background:#fff; color:#666; }
+    .periodo-btn.active { background:#C0392B; color:#fff; border-color:#C0392B; }
+    .canvas-wrap { position:relative; width:100%; }
+  </style>
 </head>
 <body>
-
-<div id="status-bar">💾 Dados salvos localmente neste celular</div>
-
+<div id="status-bar" class="loading">⏳ Conectando ao banco de dados…</div>
 <div id="header">
   <div id="header-inner">
     <div>
@@ -102,17 +103,17 @@
   <div id="cards">
     <div class="card" style="border-top:3px solid #C0392B">
       <div class="card-icon">📦</div>
-      <div class="card-valor" id="card-produtos" style="color:#C0392B">0</div>
+      <div class="card-valor" id="card-produtos" style="color:#C0392B">–</div>
       <div class="card-label">Produtos cadastrados</div>
     </div>
     <div class="card" style="border-top:3px solid #27AE60">
       <div class="card-icon">🧮</div>
-      <div class="card-valor" id="card-total" style="color:#27AE60">0 un</div>
+      <div class="card-valor" id="card-total" style="color:#27AE60">–</div>
       <div class="card-label">Total em estoque</div>
     </div>
     <div class="card" style="border-top:3px solid #95A5A6" id="card-alertas-container">
       <div class="card-icon">⚠️</div>
-      <div class="card-valor" id="card-alertas" style="color:#95A5A6">0</div>
+      <div class="card-valor" id="card-alertas" style="color:#95A5A6">–</div>
       <div class="card-label">Abaixo do mínimo</div>
     </div>
   </div>
@@ -170,7 +171,7 @@
     </div>
     <div class="grafico-card">
       <div class="grafico-titulo">📅 Produção por dia</div>
-      <div id="total-periodo" style="font-size:14px;color:#27AE60;font-weight:700;margin-bottom:10px"></div>
+      <div class="grafico-total" id="total-periodo"></div>
       <div class="canvas-wrap"><canvas id="chart-dias"></canvas></div>
     </div>
     <div class="grafico-card">
@@ -243,487 +244,345 @@
     </div>
   </div>
 </div>
-
 <script>
-// =============================================================================
-//  ESTADO
-// =============================================================================
-let produtos   = JSON.parse(localStorage.getItem('vl_produtos')   || '[]');
-let movimentos = JSON.parse(localStorage.getItem('vl_movimentos') || '[]');
-let excluirId  = null;
-let movTipo    = 'entrada';
+window.addEventListener('error', function(e) {
+  document.getElementById('status-bar').textContent = '❌ ERRO: ' + e.message;
+  document.getElementById('status-bar').className = 'error';
+});
+window.addEventListener('unhandledrejection', function(e) {
+  document.getElementById('status-bar').textContent = '❌ ERRO: ' + (e.reason?.message || e.reason);
+  document.getElementById('status-bar').className = 'error';
+});
+</script>
 
-function salvar() {
-  localStorage.setItem('vl_produtos',   JSON.stringify(produtos));
-  localStorage.setItem('vl_movimentos', JSON.stringify(movimentos));
-  const nota = document.getElementById('nota-compras').value;
-  localStorage.setItem('vl_nota', nota);
-}
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, push, set, update, remove, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyCtLuVw_VwWZnNa9cBTgCog7ao3tbgHRrk",
+  authDomain:        "do-06-d7c28.firebaseapp.com",
+  databaseURL:       "https://do-06-d7c28-default-rtdb.firebaseio.com",
+  projectId:         "do-06-d7c28",
+  storageBucket:     "do-06-d7c28.firebasestorage.app",
+  messagingSenderId: "326172967884",
+  appId:             "1:326172967884:web:e441a2465ad216bd5f5369"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+const refProdutos   = ref(db, "produtos");
+const refMovimentos = ref(db, "movimentos");
+const refNota       = ref(db, "nota");
+
+let produtos   = [];
+let movimentos = [];
+let excluirId  = null;
+let movTipo    = "entrada";
 
 function $(id) { return document.getElementById(id); }
+function fmt(d) { if (!d) return ""; const [y,m,day] = d.split("-"); return `${day}/${m}/${y}`; }
+function hoje() { return new Date().toISOString().split("T")[0]; }
+function agora() { return new Date().toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"}); }
+function setStatus(msg, cls) { const b = $("status-bar"); b.textContent = msg; b.className = cls || ""; }
 
-function fmt(d) {
-  if (!d) return '';
-  const [y, m, day] = d.split('-');
-  return `${day}/${m}/${y}`;
-}
-
-function hoje() { return new Date().toISOString().split('T')[0]; }
-
-function agora() {
-  return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-}
-
-// =============================================================================
-//  RENDER
-// =============================================================================
-function render() {
-  renderCards();
-  renderProdutos();
-  renderHistorico();
-  atualizarSelectProdutos();
-}
+function render() { renderCards(); renderProdutos(); renderHistorico(); atualizarSelectProdutos(); }
 
 function renderCards() {
   const alertas = produtos.filter(p => p.estoque <= p.minimo);
   const total   = produtos.reduce((a, p) => a + p.estoque, 0);
-  $('card-produtos').textContent = produtos.length;
-  $('card-total').textContent    = total + ' un';
-  $('card-alertas').textContent  = alertas.length;
-  const cor = alertas.length > 0 ? '#E67E22' : '#95A5A6';
-  $('card-alertas').style.color = cor;
-  $('card-alertas-container').style.borderTopColor = cor;
-  const badge = $('alerta-badge');
-  if (alertas.length > 0) {
-    badge.style.display = 'block';
-    badge.textContent = `⚠️ ${alertas.length} alerta${alertas.length > 1 ? 's' : ''}`;
-  } else {
-    badge.style.display = 'none';
-  }
+  $("card-produtos").textContent = produtos.length;
+  $("card-total").textContent    = total + " un";
+  $("card-alertas").textContent  = alertas.length;
+  const cor = alertas.length > 0 ? "#E67E22" : "#95A5A6";
+  $("card-alertas").style.color = cor;
+  $("card-alertas-container").style.borderTopColor = cor;
+  const badge = $("alerta-badge");
+  if (alertas.length > 0) { badge.style.display = "block"; badge.textContent = `⚠️ ${alertas.length} alerta${alertas.length > 1 ? "s" : ""}`; }
+  else badge.style.display = "none";
 }
 
 function renderProdutos() {
-  const container = $('lista-produtos');
-  if (produtos.length === 0) {
-    container.innerHTML = '<div class="empty">Nenhum produto cadastrado</div>';
-    return;
-  }
+  const container = $("lista-produtos");
+  if (produtos.length === 0) { container.innerHTML = '<div class="empty">Nenhum produto cadastrado</div>'; return; }
   container.innerHTML = produtos.map(p => {
-    const baixo     = p.estoque <= p.minimo;
-    const pct       = Math.min(100, p.minimo > 0 ? (p.estoque / (p.minimo * 2)) * 100 : 100);
-    const cor       = baixo ? '#E67E22' : '#C0392B';
-    const fillColor = baixo ? '#E67E22' : '#27AE60';
-    return `
-      <div class="produto-card${baixo ? ' baixo' : ''}">
-        <div class="produto-row">
-          <div>
-            <div class="produto-nome">${p.nome}${baixo ? '<span class="badge-baixo">⚠️ Baixo</span>' : ''}</div>
-            <div class="produto-sub">${p.categoria} · mín. ${p.minimo} ${p.unidade}</div>
-          </div>
-          <div class="produto-right">
-            <div>
-              <div class="produto-qtd" style="color:${cor}">${p.estoque}</div>
-              <div class="produto-un">${p.unidade}</div>
-            </div>
-            <div class="produto-actions">
-              <button class="btn-icon" onclick="excluirProd('${p.id}')">🗑️</button>
-            </div>
-          </div>
+    const baixo = p.estoque <= p.minimo;
+    const pct   = Math.min(100, p.minimo > 0 ? (p.estoque / (p.minimo * 2)) * 100 : 100);
+    const cor   = baixo ? "#E67E22" : "#C0392B";
+    const fill  = baixo ? "#E67E22" : "#27AE60";
+    return `<div class="produto-card${baixo ? " baixo" : ""}">
+      <div class="produto-row">
+        <div>
+          <div class="produto-nome">${p.nome}${baixo ? '<span class="badge-baixo">⚠️ Baixo</span>' : ""}</div>
+          <div class="produto-sub">${p.categoria} · mín. ${p.minimo} ${p.unidade}</div>
         </div>
-        <div class="progress-bar">
-          <div class="progress-fill" style="width:${pct}%;background:${fillColor}"></div>
+        <div class="produto-right">
+          <div><div class="produto-qtd" style="color:${cor}">${p.estoque}</div><div class="produto-un">${p.unidade}</div></div>
+          <div class="produto-actions"><button class="btn-icon" onclick="window.excluirProd('${p.id}')">🗑️</button></div>
         </div>
-      </div>`;
-  }).join('');
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${fill}"></div></div>
+    </div>`;
+  }).join("");
 }
 
 function renderHistorico() {
-  const tipo   = $('filtro-tipo').value;
-  const prodId = $('filtro-prod').value;
-  const data   = $('filtro-data').value;
-
+  const tipo   = $("filtro-tipo").value;
+  const prodId = $("filtro-prod").value;
+  const data   = $("filtro-data").value;
   const filtrados = movimentos.filter(m => {
-    if (tipo !== 'todos' && m.tipo !== tipo) return false;
+    if (tipo !== "todos" && m.tipo !== tipo) return false;
     if (prodId && m.produtoId !== prodId) return false;
     if (data && m.data !== data) return false;
     return true;
   });
-
-  const container = $('lista-historico');
-  if (filtrados.length === 0) {
-    container.innerHTML = '<div class="empty">Nenhuma movimentação encontrada</div>';
-    return;
-  }
-
+  const container = $("lista-historico");
+  if (filtrados.length === 0) { container.innerHTML = '<div class="empty">Nenhuma movimentação encontrada</div>'; return; }
   const ordenados = [...filtrados].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   container.innerHTML = ordenados.map(m => `
-    <div class="mov-card" style="border-left:4px solid ${m.tipo === 'entrada' ? '#27AE60' : '#E67E22'}">
+    <div class="mov-card" style="border-left:4px solid ${m.tipo === "entrada" ? "#27AE60" : "#E67E22"}">
       <div>
         <div class="mov-nome">${m.produto}</div>
-        <div class="mov-sub">${fmt(m.data)}${m.hora ? ' às ' + m.hora : ''}${m.obs ? ' · ' + m.obs : ''}</div>
+        <div class="mov-sub">${fmt(m.data)}${m.hora ? " às " + m.hora : ""}${m.obs ? " · " + m.obs : ""}</div>
       </div>
       <div style="text-align:right">
-        <div class="mov-qtd" style="color:${m.tipo === 'entrada' ? '#27AE60' : '#E67E22'}">${m.tipo === 'entrada' ? '+' : '−'}${m.qtd}</div>
+        <div class="mov-qtd" style="color:${m.tipo === "entrada" ? "#27AE60" : "#E67E22"}">${m.tipo === "entrada" ? "+" : "−"}${m.qtd}</div>
         <div class="mov-tipo">${m.tipo}</div>
       </div>
-    </div>`).join('');
+    </div>`).join("");
 }
 
 function atualizarSelectProdutos() {
-  const opts = '<option value="">Selecione...</option>' +
-    produtos.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
-  $('mov-produto').innerHTML = opts;
-
-  const filtroProd = $('filtro-prod');
-  const atual = filtroProd.value;
-  filtroProd.innerHTML = '<option value="">Todos os produtos</option>' +
-    produtos.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
-  filtroProd.value = atual;
+  $("mov-produto").innerHTML = '<option value="">Selecione...</option>' + produtos.map(p => `<option value="${p.id}">${p.nome}</option>`).join("");
+  const fp = $("filtro-prod"); const atual = fp.value;
+  fp.innerHTML = '<option value="">Todos os produtos</option>' + produtos.map(p => `<option value="${p.id}">${p.nome}</option>`).join("");
+  fp.value = atual;
 }
 
-// =============================================================================
-//  PRODUTO
-// =============================================================================
 function abrirNovoProd() {
-  $('modal-prod-titulo').textContent = 'Novo Produto';
-  $('prod-nome').value      = '';
-  $('prod-categoria').value = 'Fritos';
-  $('prod-unidade').value   = 'un';
-  $('prod-estoque').value   = '';
-  $('prod-minimo').value    = '';
-  $('btn-salvar-prod').textContent = 'Cadastrar produto';
-  $('modal-prod').style.display = 'flex';
+  $("modal-prod-titulo").textContent = "Novo Produto";
+  $("prod-nome").value = ""; $("prod-categoria").value = "Fritos";
+  $("prod-unidade").value = "un"; $("prod-estoque").value = ""; $("prod-minimo").value = "";
+  $("btn-salvar-prod").textContent = "Cadastrar produto";
+  $("modal-prod").style.display = "flex";
 }
 
 function salvarProd() {
-  const nome = $('prod-nome').value.trim();
+  const nome = $("prod-nome").value.trim();
   if (!nome) return;
   const obj = {
-    id        : Date.now().toString(),
-    nome,
-    categoria : $('prod-categoria').value,
-    unidade   : $('prod-unidade').value,
-    estoque   : Number($('prod-estoque').value) || 0,
-    minimo    : Number($('prod-minimo').value)  || 0,
+    nome, categoria: $("prod-categoria").value, unidade: $("prod-unidade").value,
+    estoque: Number($("prod-estoque").value) || 0, minimo: Number($("prod-minimo").value) || 0,
   };
-  produtos.push(obj);
-  // Registrar estoque inicial como entrada no histórico
-  if (obj.estoque > 0) {
-    movimentos.push({
-      id        : (Date.now() + 1).toString(),
-      data      : hoje(),
-      hora      : agora(),
-      timestamp : Date.now(),
-      tipo      : 'entrada',
-      produtoId : obj.id,
-      produto   : obj.nome,
-      qtd       : obj.estoque,
-      obs       : 'Estoque inicial',
-    });
-  }
-  salvar();
-  render();
-  $('modal-prod').style.display = 'none';
+  const btn = $("btn-salvar-prod");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Salvando…';
+  const novoRef = push(refProdutos);
+  const prodId  = novoRef.key;
+  set(novoRef, { id: prodId, ...obj }).then(() => {
+    if (obj.estoque > 0) {
+      const movRef = push(refMovimentos);
+      return set(movRef, {
+        id: movRef.key, data: hoje(), hora: agora(), timestamp: serverTimestamp(),
+        tipo: "entrada", produtoId: prodId, produto: obj.nome, qtd: obj.estoque, obs: "Estoque inicial"
+      });
+    }
+  }).then(() => { $("modal-prod").style.display = "none"; })
+    .catch(err => alert("Erro: " + err.message))
+    .finally(() => { btn.disabled = false; btn.textContent = "Cadastrar produto"; });
 }
 
-function excluirProd(id) {
+window.excluirProd = function(id) {
   excluirId = id;
   const p = produtos.find(x => x.id === id);
-  $('excluir-texto').innerHTML =
-    `Tem certeza que deseja excluir <strong>${p?.nome}</strong>? Esta ação não pode ser desfeita.`;
-  $('modal-excluir').style.display = 'flex';
-}
+  $("excluir-texto").innerHTML = `Tem certeza que deseja excluir <strong>${p?.nome}</strong>? Esta ação não pode ser desfeita.`;
+  $("modal-excluir").style.display = "flex";
+};
 
 function confirmarExclusao() {
   if (!excluirId) return;
-  produtos = produtos.filter(p => p.id !== excluirId);
-  excluirId = null;
-  salvar();
-  render();
-  $('modal-excluir').style.display = 'none';
+  remove(ref(db, `produtos/${excluirId}`))
+    .then(() => { excluirId = null; $("modal-excluir").style.display = "none"; })
+    .catch(err => alert("Erro: " + err.message));
 }
 
-// =============================================================================
-//  MOVIMENTAÇÃO
-// =============================================================================
 function abrirMov(tipo, produtoId) {
-  movTipo = tipo || 'entrada';
+  movTipo = tipo || "entrada";
   atualizarTipoMov();
-  $('mov-produto').value = produtoId || '';
-  $('mov-qtd').value = '';
-  $('mov-obs').value = '';
-  $('modal-mov').style.display = 'flex';
+  $("mov-produto").value = produtoId || "";
+  $("mov-qtd").value = ""; $("mov-obs").value = "";
+  $("modal-mov").style.display = "flex";
 }
 
 function atualizarTipoMov() {
-  const te = $('tipo-entrada'), ts = $('tipo-saida');
-  $('modal-mov-titulo').textContent = movTipo === 'entrada' ? 'Registrar Entrada' : 'Registrar Saída';
-  te.className = 'tipo-btn' + (movTipo === 'entrada' ? ' active-entrada' : '');
-  ts.className = 'tipo-btn' + (movTipo === 'saida'   ? ' active-saida'   : '');
-  const btnSalvar = $('btn-salvar-mov');
-  btnSalvar.className   = 'btn btn-full ' + (movTipo === 'entrada' ? 'btn-green' : 'btn-orange');
-  btnSalvar.textContent = `Confirmar ${movTipo}`;
+  $("modal-mov-titulo").textContent = movTipo === "entrada" ? "Registrar Entrada" : "Registrar Saída";
+  $("tipo-entrada").className = "tipo-btn" + (movTipo === "entrada" ? " active-entrada" : "");
+  $("tipo-saida").className   = "tipo-btn" + (movTipo === "saida"   ? " active-saida"   : "");
+  const btn = $("btn-salvar-mov");
+  btn.className   = "btn btn-full " + (movTipo === "entrada" ? "btn-green" : "btn-orange");
+  btn.textContent = `Confirmar ${movTipo}`;
 }
 
 function salvarMov() {
-  const produtoId = $('mov-produto').value;
-  const qtd       = Number($('mov-qtd').value);
+  const produtoId = $("mov-produto").value;
+  const qtd       = Number($("mov-qtd").value);
   if (!produtoId || !qtd) return;
-
   const prod = produtos.find(p => p.id === produtoId);
   if (!prod) return;
-
-  prod.estoque = movTipo === 'entrada'
-    ? prod.estoque + qtd
-    : Math.max(0, prod.estoque - qtd);
-
-  movimentos.push({
-    id        : Date.now().toString(),
-    data      : hoje(),
-    hora      : agora(),
-    timestamp : Date.now(),
-    tipo      : movTipo,
-    produtoId : prod.id,
-    produto   : prod.nome,
-    qtd,
-    obs       : $('mov-obs').value,
-  });
-
-  salvar();
+  const btn = $("btn-salvar-mov");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Salvando…';
+  const novoEstoque = movTipo === "entrada" ? prod.estoque + qtd : Math.max(0, prod.estoque - qtd);
+  update(ref(db, `produtos/${produtoId}`), { estoque: novoEstoque }).then(() => {
+    const movRef = push(refMovimentos);
+    return set(movRef, {
+      id: movRef.key, data: hoje(), hora: agora(), timestamp: serverTimestamp(),
+      tipo: movTipo, produtoId: prod.id, produto: prod.nome, qtd, obs: $("mov-obs").value,
+    });
+  }).then(() => { $("modal-mov").style.display = "none"; })
+    .catch(err => alert("Erro: " + err.message))
+    .finally(() => { btn.disabled = false; atualizarTipoMov(); });
+}
+  onValue(refProdutos, snap => {
+  produtos = [];
+  snap.forEach(c => produtos.push(c.val()));
   render();
-  $('modal-mov').style.display = 'none';
-}
+  setStatus("🟢 Conectado · dados em tempo real", "");
+}, err => setStatus("❌ Erro: " + err.message, "error"));
 
-// =============================================================================
-//  TABS
-// =============================================================================
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const aba = btn.dataset.aba;
-    $('aba-estoque').style.display   = aba === 'estoque'   ? 'block' : 'none';
-    $('aba-historico').style.display = aba === 'historico' ? 'block' : 'none';
-    $('aba-compras').style.display   = aba === 'compras'   ? 'block' : 'none';
-    $('aba-graficos').style.display  = aba === 'graficos'  ? 'block' : 'none';
-    if (aba === 'graficos') renderGraficos();
-  });
-});
-
-// =============================================================================
-//  BOTÕES
-// =============================================================================
-$('btn-novo-prod').addEventListener('click', abrirNovoProd);
-$('btn-entrada-global').addEventListener('click', () => abrirMov('entrada'));
-$('btn-saida-global').addEventListener('click',   () => abrirMov('saida'));
-$('btn-salvar-prod').addEventListener('click', salvarProd);
-$('btn-salvar-mov').addEventListener('click',  salvarMov);
-$('modal-prod-close').addEventListener('click',    () => $('modal-prod').style.display    = 'none');
-$('modal-mov-close').addEventListener('click',     () => $('modal-mov').style.display     = 'none');
-$('modal-excluir-close').addEventListener('click', () => $('modal-excluir').style.display = 'none');
-$('btn-cancelar-excluir').addEventListener('click',() => $('modal-excluir').style.display = 'none');
-$('btn-confirmar-excluir').addEventListener('click', confirmarExclusao);
-
-$('tipo-entrada').addEventListener('click', () => { movTipo = 'entrada'; atualizarTipoMov(); });
-$('tipo-saida').addEventListener('click',   () => { movTipo = 'saida';   atualizarTipoMov(); });
-
-[$('modal-prod'), $('modal-mov'), $('modal-excluir')].forEach(m => {
-  m.addEventListener('click', e => { if (e.target === m) m.style.display = 'none'; });
-});
-
-$('filtro-tipo').addEventListener('change', renderHistorico);
-$('filtro-prod').addEventListener('change', renderHistorico);
-$('filtro-data').addEventListener('change', () => {
-  $('btn-clear-date').style.display = $('filtro-data').value ? 'inline-block' : 'none';
-  renderHistorico();
-});
-$('btn-clear-date').addEventListener('click', () => {
-  $('filtro-data').value = '';
-  $('btn-clear-date').style.display = 'none';
+onValue(refMovimentos, snap => {
+  movimentos = [];
+  snap.forEach(c => movimentos.push(c.val()));
   renderHistorico();
 });
 
-// =============================================================================
-//  LISTA DE COMPRAS
-// =============================================================================
-const notaSalva = localStorage.getItem('vl_nota') || '';
-$('nota-compras').value = notaSalva;
-if (notaSalva) {
-  $('btn-limpar-nota').style.display = 'inline-block';
-  const linhas = notaSalva.split('\n').filter(l => l.trim()).length;
-  $('nota-info').textContent = `${linhas} linha(s)`;
-}
-
-$('nota-compras').addEventListener('input', () => {
-  const val = $('nota-compras').value;
-  localStorage.setItem('vl_nota', val);
-  const linhas = val.split('\n').filter(l => l.trim()).length;
-  $('nota-info').textContent = val ? `${linhas} linha(s)` : 'Bloco de notas livre';
-  $('btn-limpar-nota').style.display = val ? 'inline-block' : 'none';
+onValue(ref(db, ".info/connected"), snap => {
+  if (snap.val() === true) setStatus("🟢 Conectado · dados em tempo real", "");
+  else setStatus("🔴 Sem conexão — trabalhando offline", "offline");
 });
 
-$('btn-limpar-nota').addEventListener('click', () => {
-  $('nota-compras').value = '';
-  localStorage.setItem('vl_nota', '');
-  $('nota-info').textContent = 'Bloco de notas livre';
-  $('btn-limpar-nota').style.display = 'none';
+let notaDebounce = null;
+onValue(refNota, snap => {
+  const val = snap.val() || "";
+  if (document.activeElement !== $("nota-compras")) {
+    $("nota-compras").value = val;
+    const linhas = val.split("\n").filter(l => l.trim()).length;
+    $("nota-info").textContent = val ? `${linhas} linha(s)` : "Bloco de notas livre";
+    $("btn-limpar-nota").style.display = val ? "inline-block" : "none";
+  }
+});
+$("nota-compras").addEventListener("input", () => {
+  const val = $("nota-compras").value;
+  const linhas = val.split("\n").filter(l => l.trim()).length;
+  $("nota-info").textContent = val ? `${linhas} linha(s)` : "Bloco de notas livre";
+  $("btn-limpar-nota").style.display = val ? "inline-block" : "none";
+  clearTimeout(notaDebounce);
+  notaDebounce = setTimeout(() => set(refNota, val), 800);
+});
+$("btn-limpar-nota").addEventListener("click", () => {
+  $("nota-compras").value = "";
+  $("nota-info").textContent = "Bloco de notas livre";
+  $("btn-limpar-nota").style.display = "none";
+  set(refNota, "");
 });
 
+let chartDias = null, chartProdutos = null, periodoGrafico = 7;
 
-// =============================================================================
-//  GRÁFICOS
-// =============================================================================
-let chartDias     = null;
-let chartProdutos = null;
-let periodoGrafico = 7;
-
-function diasAtras(n) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  d.setHours(0,0,0,0);
-  return d;
-}
+function diasAtras(n) { const d = new Date(); d.setDate(d.getDate() - n); d.setHours(0,0,0,0); return d; }
 
 function renderGraficos() {
   const corte = diasAtras(periodoGrafico);
   const movFiltrados = movimentos.filter(m => {
-    if (!m.data || m.tipo !== 'entrada') return false;
-    const [y,mo,d] = m.data.split('-');
+    if (!m.data || m.tipo !== "entrada") return false;
+    const [y,mo,d] = m.data.split("-");
     return new Date(y, mo-1, d) >= corte;
   });
-
-  // --- Gráfico 1: produção por dia ---
   const diasMap = {};
   for (let i = periodoGrafico - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const key = d.toISOString().split('T')[0];
-    diasMap[key] = { entrada: 0 };
+    const d = new Date(); d.setDate(d.getDate() - i);
+    diasMap[d.toISOString().split("T")[0]] = { entrada: 0 };
   }
-  movFiltrados.forEach(m => {
-    if (diasMap[m.data]) diasMap[m.data].entrada += m.qtd;
-  });
-  const labDias = Object.keys(diasMap).map(d => { const [y,mo,dia] = d.split('-'); return `${dia}/${mo}`; });
+  movFiltrados.forEach(m => { if (diasMap[m.data]) diasMap[m.data].entrada += m.qtd; });
+  const labDias = Object.keys(diasMap).map(d => { const [y,mo,dia] = d.split("-"); return `${dia}/${mo}`; });
   const entDias = Object.values(diasMap).map(v => v.entrada);
-  const totalPeriodo = entDias.reduce((a, b) => a + b, 0);
-  const labelPeriodo = periodoGrafico === 7 ? 'semana' : 'mês';
-  $('total-periodo').textContent = `Total produzido na ${labelPeriodo}: ${totalPeriodo} un`;
-
+  const total   = entDias.reduce((a, b) => a + b, 0);
+  $("total-periodo").textContent = `Total produzido na ${periodoGrafico === 7 ? "semana" : "mês"}: ${total} un`;
   if (chartDias) chartDias.destroy();
-  chartDias = new Chart(document.getElementById('chart-dias'), {
-    type: 'bar',
-    data: {
-      labels: labDias,
-      datasets: [
-        { label: 'Produção', data: entDias, backgroundColor: '#27AE60', borderRadius: 6, borderSkipped: false }
-      ]
-    },
+  chartDias = new Chart(document.getElementById("chart-dias"), {
+    type: "bar",
+    data: { labels: labDias, datasets: [{ label: "Produção", data: entDias, backgroundColor: "#27AE60", borderRadius: 6, borderSkipped: false }] },
     options: {
       responsive: true,
-      plugins: {
-        legend: { position: 'bottom', labels: { font: { family: 'DM Sans', size: 13 } } },
-        datalabels: false
-      },
+      plugins: { legend: { position: "bottom", labels: { font: { family: "DM Sans", size: 13 } } } },
       layout: { padding: { top: 20 } },
-      scales: {
-        y: { beginAtZero: true, ticks: { font: { family: 'DM Sans' } } },
-        x: { ticks: { font: { family: 'DM Sans' }, maxRotation: 45 } }
-      },
-      animation: {
-        onComplete: function() {
-          const chart = this;
-          const ctx = chart.ctx;
-          ctx.save();
-          ctx.font = 'bold 11px DM Sans';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'bottom';
-          chart.data.datasets.forEach((dataset, i) => {
-            const meta = chart.getDatasetMeta(i);
-            meta.data.forEach((bar, j) => {
-              const val = dataset.data[j];
-              if (val > 0) {
-                ctx.fillStyle = '#27AE60';
-                ctx.fillText(val, bar.x, bar.y - 4);
-              }
-            });
-          });
-          ctx.restore();
-        }
-      }
+      scales: { y: { beginAtZero: true, ticks: { font: { family: "DM Sans" } } }, x: { ticks: { font: { family: "DM Sans" }, maxRotation: 45 } } },
+      animation: { onComplete: function() {
+        const chart = this; const ctx = chart.ctx; ctx.save();
+        ctx.font = "bold 11px DM Sans"; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+        chart.data.datasets.forEach((ds, i) => { chart.getDatasetMeta(i).data.forEach((bar, j) => {
+          const val = ds.data[j]; if (val > 0) { ctx.fillStyle = "#27AE60"; ctx.fillText(val, bar.x, bar.y - 4); }
+        }); }); ctx.restore();
+      }}
     }
   });
-
-  // --- Gráfico 2: produção por produto ---
   const prodMap = {};
   produtos.forEach(p => { prodMap[p.id] = { nome: p.nome, entrada: 0 }; });
-  movFiltrados.forEach(m => {
-    if (prodMap[m.produtoId]) prodMap[m.produtoId].entrada += m.qtd;
-  });
+  movFiltrados.forEach(m => { if (prodMap[m.produtoId]) prodMap[m.produtoId].entrada += m.qtd; });
   const labProd = Object.values(prodMap).map(v => v.nome);
   const entProd = Object.values(prodMap).map(v => v.entrada);
-
   if (chartProdutos) chartProdutos.destroy();
-  chartProdutos = new Chart(document.getElementById('chart-produtos'), {
-    type: 'bar',
-    data: {
-      labels: labProd,
-      datasets: [
-        { label: 'Produção', data: entProd, backgroundColor: '#27AE60', borderRadius: 6, borderSkipped: false }
-      ]
-    },
+  chartProdutos = new Chart(document.getElementById("chart-produtos"), {
+    type: "bar",
+    data: { labels: labProd, datasets: [{ label: "Produção", data: entProd, backgroundColor: "#27AE60", borderRadius: 6, borderSkipped: false }] },
     options: {
       responsive: true,
-      plugins: {
-        legend: { position: 'bottom', labels: { font: { family: 'DM Sans', size: 13 } } }
-      },
+      plugins: { legend: { position: "bottom", labels: { font: { family: "DM Sans", size: 13 } } } },
       layout: { padding: { top: 20 } },
-      scales: {
-        y: { beginAtZero: true, ticks: { font: { family: 'DM Sans' } } },
-        x: { ticks: { font: { family: 'DM Sans' } } }
-      },
-      animation: {
-        onComplete: function() {
-          const chart = this;
-          const ctx = chart.ctx;
-          ctx.save();
-          ctx.font = 'bold 11px DM Sans';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'bottom';
-          chart.data.datasets.forEach((dataset, i) => {
-            const meta = chart.getDatasetMeta(i);
-            meta.data.forEach((bar, j) => {
-              const val = dataset.data[j];
-              if (val > 0) {
-                ctx.fillStyle = '#27AE60';
-                ctx.fillText(val, bar.x, bar.y - 4);
-              }
-            });
-          });
-          ctx.restore();
-        }
-      }
+      scales: { y: { beginAtZero: true, ticks: { font: { family: "DM Sans" } } }, x: { ticks: { font: { family: "DM Sans" } } } },
+      animation: { onComplete: function() {
+        const chart = this; const ctx = chart.ctx; ctx.save();
+        ctx.font = "bold 11px DM Sans"; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+        chart.data.datasets.forEach((ds, i) => { chart.getDatasetMeta(i).data.forEach((bar, j) => {
+          const val = ds.data[j]; if (val > 0) { ctx.fillStyle = "#27AE60"; ctx.fillText(val, bar.x, bar.y - 4); }
+        }); }); ctx.restore();
+      }}
     }
   });
 }
 
-$('btn-semana').addEventListener('click', () => {
-  periodoGrafico = 7;
-  $('btn-semana').classList.add('active');
-  $('btn-mes').classList.remove('active');
-  renderGraficos();
+$("btn-semana").addEventListener("click", () => { periodoGrafico = 7; $("btn-semana").classList.add("active"); $("btn-mes").classList.remove("active"); renderGraficos(); });
+$("btn-mes").addEventListener("click",    () => { periodoGrafico = 30; $("btn-mes").classList.add("active"); $("btn-semana").classList.remove("active"); renderGraficos(); });
+
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    const aba = btn.dataset.aba;
+    $("aba-estoque").style.display   = aba === "estoque"   ? "block" : "none";
+    $("aba-historico").style.display = aba === "historico" ? "block" : "none";
+    $("aba-compras").style.display   = aba === "compras"   ? "block" : "none";
+    $("aba-graficos").style.display  = aba === "graficos"  ? "block" : "none";
+    if (aba === "graficos") renderGraficos();
+  });
 });
 
-$('btn-mes').addEventListener('click', () => {
-  periodoGrafico = 30;
-  $('btn-mes').classList.add('active');
-  $('btn-semana').classList.remove('active');
-  renderGraficos();
+$("btn-novo-prod").addEventListener("click", abrirNovoProd);
+$("btn-entrada-global").addEventListener("click", () => abrirMov("entrada"));
+$("btn-saida-global").addEventListener("click",   () => abrirMov("saida"));
+$("btn-salvar-prod").addEventListener("click", salvarProd);
+$("btn-salvar-mov").addEventListener("click",  salvarMov);
+$("modal-prod-close").addEventListener("click",    () => $("modal-prod").style.display    = "none");
+$("modal-mov-close").addEventListener("click",     () => $("modal-mov").style.display     = "none");
+$("modal-excluir-close").addEventListener("click", () => $("modal-excluir").style.display = "none");
+$("btn-cancelar-excluir").addEventListener("click",() => $("modal-excluir").style.display = "none");
+$("btn-confirmar-excluir").addEventListener("click", confirmarExclusao);
+$("tipo-entrada").addEventListener("click", () => { movTipo = "entrada"; atualizarTipoMov(); });
+$("tipo-saida").addEventListener("click",   () => { movTipo = "saida";   atualizarTipoMov(); });
+[$("modal-prod"), $("modal-mov"), $("modal-excluir")].forEach(m => {
+  m.addEventListener("click", e => { if (e.target === m) m.style.display = "none"; });
 });
-
-// =============================================================================
-//  INICIAR
-// =============================================================================
-render();
+$("filtro-tipo").addEventListener("change", renderHistorico);
+$("filtro-prod").addEventListener("change", renderHistorico);
+$("filtro-data").addEventListener("change", () => { $("btn-clear-date").style.display = $("filtro-data").value ? "inline-block" : "none"; renderHistorico(); });
+$("btn-clear-date").addEventListener("click", () => { $("filtro-data").value = ""; $("btn-clear-date").style.display = "none"; renderHistorico(); });
 </script>
 </body>
 </html>
